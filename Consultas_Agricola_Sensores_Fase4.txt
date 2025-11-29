@@ -158,7 +158,3 @@ db.alertas.aggregate([
     "$limit": 3
   }
 ])
-
-// Indica la cantidad de Problemas de Gravedad Criticar
-
-
