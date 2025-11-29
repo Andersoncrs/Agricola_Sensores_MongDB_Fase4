@@ -1,0 +1,164 @@
+// ==========================================
+// 1. CONSULTAS BÁSICAS (CRUD)
+// ==========================================
+
+// Inserción de Documento, un nuevo terreno a la colección "zonas"
+// Se inserta la zona Zipaquirá
+db.zonas.insertOne({
+  "_id": "ZN-NEW-01",
+  "nombre": "Invernadero Zipaquirá - Sector Claveles",
+  "municipio": "Zipaquirá",
+  "ubicacion_geografica": {
+    "type": "Point",
+    "coordinates": [-74.0, 5.0]
+  },
+  "configuracion_ideal": {
+    "min_temp": 15,
+    "max_temp": 22,
+    "target_humedad": 70
+  },
+  "cultivo": "Claveles Estándar"
+})
+
+// Selección de Documentos
+// Buscamos los sensores que esten en "mantenimiento" o "inactivo"
+db.dispositivos.find(
+  { 
+    "estado_operativo": { "$in": ["mantenimiento", "inactivo"] } 
+  },
+  { "modelo": 1, "id_zona": 1, "estado_operativo": 1 } // Proyección: Solo traer estos campos
+)
+
+// Actualización de Documentos
+// Actualizamos el estado de alerta de un dispositivo a "Resuelta"
+db.alertas.updateOne(
+  { "_id": "ALR-006" }, // Filtro: Cuál documento actualizar
+  { 
+    "$set": { 
+      "estado_alerta": "Resuelta",
+      "mensaje_resolucion": "Ventiladores activados manualmente por el operario"
+    } 
+  }
+)
+
+// Eliminación de Documentos
+// Eliminamos el Dispositivo con Id DSP-007 de la colección dispositivos
+db.dispositivos.deleteOne({ "_id": "DSP-007" })
+
+
+// ==========================================
+// 2. CONSULTAS CON FILTROS Y OPERADORES
+// ==========================================
+
+// Filtro $gte y $lte
+// Obtenemos los documentos de las mediciones donde este los valores de temperatura entre 20°C y 28°C 
+db.mediciones.find({
+  "tipo_lectura": "temperatura",
+  "lectura.valor": { 
+    "$gte": 20, 
+    "$lte": 28 
+  }
+})
+
+
+// Filtro $in
+// Obtenemos los documentos que pertenecen a los municipios de Facatativá, Jerico y Pitalito.
+db.zonas.find({
+  "municipio": { 
+    "$in": ["Facatativá", "Jericó", "Pitalito"] 
+  }
+})
+
+// Filtro con el operador $ne
+// Vamos a obtener las alertas que no tengan el atributo "estado_alerta" en "Resuelta"
+db.alertas.find({
+  "gravedad": "Critica",
+  "estado_alerta": { 
+    "$ne": "Resuelta" 
+  }
+})
+
+// Filtro con el operador $or
+// Obtenemos los documentos que tienen el estado_alerta en "mantenimiento" o "inactivo"
+// O los documentos en los que el Fabricante es Samsung
+db.dispositivos.find({
+  "$or": [
+    { "estado_operativo": "mantenimiento" },
+    { "estado_operativo": "inactivo" },
+    {"fabricante": "Samsung"}
+  ]
+})
+
+// ==========================================
+// 3. CONSULTAS DE AGREGACIÓN (ESTADÍSTICAS)
+// ==========================================
+
+// Calculamos el valor promedio de temperatura de cada sensor
+// y lo ordenamos de mayor a menor
+db.mediciones.aggregate([
+  {
+    "$match": { "tipo_lectura": "temperatura" } 
+  },
+  {
+    "$group": {
+      "_id": "$id_dispositivo", 
+      "temp_promedio": { "$avg": "$lectura.valor" },
+      "total_lecturas": { "$sum": 1 }
+    }
+  },
+  {
+    "$sort": { "temp_promedio": -1 } 
+  }
+])
+
+// Calculamos la cantidad de dispositivos de acuerdo con
+// su estado operativo 
+db.dispositivos.aggregate([
+  {
+    "$group": {
+      "_id": "$estado_operativo",
+      "cantidad": { "$sum": 1 }
+    }
+  }
+])
+
+// Calculamos el valor máximo y mínimo de humedad de los registros de los sensores
+// también vamos a obtener el promedio
+db.mediciones.aggregate([
+  {
+    "$match": { "tipo_lectura": "humedad_suelo" }
+  },
+  {
+    "$group": {
+      "_id": null, 
+      "humedad_maxima": { "$max": "$lectura.valor" },
+      "humedad_minima": { "$min": "$lectura.valor" },
+      "promedio_global": { "$avg": "$lectura.valor" }
+    }
+  }
+])
+
+
+// Calcula la cantidad de alertas de gravedad critica que han sido registrados pro los sensores
+// de acuerdo con cada zona
+db.alertas.aggregate([
+  {
+    "$match": { "gravedad": "Critica" }
+  },
+  {
+    "$group": {
+      "_id": "$id_zona",
+      "total_incidentes": { "$sum": 1 }
+    }
+  },
+  {
+    "$sort": { "total_incidentes": -1 }
+  },
+  {
+    "$limit": 3
+  }
+])
+
+// Indica la cantidad de Problemas de Gravedad Criticar
+
+
